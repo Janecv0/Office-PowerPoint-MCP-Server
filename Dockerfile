@@ -16,5 +16,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Expose default port for Railway port detection
 EXPOSE 8000
 
-# Set the entrypoint to run the MCP server with SSE transport
+# Default entrypoint (Railway startCommand overrides this)
 ENTRYPOINT ["python", "ppt_mcp_server.py", "--transport", "sse"]
