@@ -405,31 +405,36 @@ def get_server_info() -> Dict:
 # ---- Main Function ----
 # ---- Main Function ----
 # ---- Main Function ----
+# ---- Main Function ----
 def main(transport: str = "stdio", port: int = 8000):
     if transport == "http":
-        # OPTION 1: The standard way
-        # We pass 'forwarded_allow_ips' to tell Uvicorn to trust Railway's proxy
-        # We pass 'host' to listen on all interfaces
-        try:
-            app.run(
-                transport='sse', 
-                port=port, 
-                host='0.0.0.0', 
-                forwarded_allow_ips='*'
-            )
-        except TypeError:
-            # Fallback: If the library version doesn't support forwarded_allow_ips in run(),
-            # we try to get the ASGI app directly. 
-            import uvicorn
-            # Try to get the underlying app (common names: sse_app, _sse_app, starlette_app)
-            if hasattr(app, 'sse_app'):
-                asgi_app = app.sse_app()
-            elif hasattr(app, 'http_app'):
-                asgi_app = app.http_app()
-            else:
-                raise RuntimeError("Could not find ASGI app on FastMCP object. Please check dir(app).")
+        import uvicorn
+        import os
 
-            uvicorn.run(asgi_app, host="0.0.0.0", port=port, forwarded_allow_ips="*")
+        # 1. Configure the internal settings (for the parts that work)
+        # We explicitly set debug=True, which often relaxes security checks
+        app.settings.port = port
+        app.settings.debug = True 
+        
+        # 2. Extract the internal Starlette application
+        # The library hides the app in private attributes, so we find it.
+        # We look for '_sse_app' (common) or '_app' (fallback).
+        starlette_app = getattr(app, "_sse_app", None) or getattr(app, "_app", None)
+        
+        if starlette_app:
+            print(f"Starting Custom Uvicorn Server on port {port}...")
+            # 3. Run Uvicorn manually with 'forwarded_allow_ips'
+            # This is the 'Secret Sauce' that fixes the 502/Invalid Host error on Railway
+            uvicorn.run(
+                starlette_app, 
+                host="0.0.0.0", 
+                port=port, 
+                forwarded_allow_ips="*" 
+            )
+        else:
+            # Fallback if we can't find the internal app (shouldn't happen)
+            print("Could not find internal app, falling back to default run.")
+            app.run(transport='sse')
 
     elif transport == "sse":
         app.run(transport='sse')
