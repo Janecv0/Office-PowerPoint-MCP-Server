@@ -50,7 +50,11 @@ def get_transport_mode() -> str:
 
 
 def get_base_url() -> str:
-    """Build the base URL from host/port settings."""
+    """Build the base URL from host/port settings.
+    Uses RAILWAY_PUBLIC_DOMAIN when deployed on Railway."""
+    public_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+    if public_domain:
+        return f"https://{public_domain}"
     host = getattr(app.settings, "host", "localhost")
     port = getattr(app.settings, "port", 8000)
     display_host = "localhost" if host == "0.0.0.0" else host
