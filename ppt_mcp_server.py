@@ -403,32 +403,22 @@ def get_server_info() -> Dict:
     }
 
 def main(transport: str = "stdio", port: int = 8000):
-    port = int(os.environ.get("PORT", port))  # <-- add this
+    port = int(os.environ.get("PORT", port))
     if transport == "http":
         import asyncio
-        # Set the port for HTTP transport
-        app.settings.port = port
-
-
-
-        # Start the FastMCP server with HTTP transport
         try:
-            app.run(transport='streamable-http')
-
-
-        except asyncio.exceptions.CancelledError:
-            print("Server stopped by user.")
+            app.run(
+                transport='streamable-http',
+                host='0.0.0.0',
+                port=port
+            )
         except KeyboardInterrupt:
             print("Server stopped by user.")
-        except Exception as e:
-            print(f"Error starting server: {e}")
 
     elif transport == "sse":
-        # Run the FastMCP server in SSE (Server Side Events) mode
-        app.run(transport='sse')
+        app.run(transport='sse', host='0.0.0.0', port=port)
 
     else:
-        # Run the FastMCP server
         app.run(transport='stdio')
         
 if __name__ == "__main__":
