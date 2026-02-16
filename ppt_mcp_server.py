@@ -7,11 +7,6 @@ import os
 import argparse
 from typing import Dict, Any
 
-# Configure network binding before FastMCP construction so Pydantic settings pick it up
-if os.environ.get("PORT"):
-    os.environ.setdefault("FASTMCP_PORT", os.environ["PORT"])
-    os.environ.setdefault("FASTMCP_HOST", "0.0.0.0")
-
 from mcp.server.fastmcp import FastMCP
 
 # import utils  # Currently unused
@@ -409,10 +404,12 @@ def get_server_info() -> Dict:
     }
 
 def main(transport: str = "stdio"):
-    if transport == "http":
-        app.run(transport='streamable-http')
-    elif transport == "sse":
-        app.run(transport='sse')
+    if transport in ("http", "sse"):
+        port = int(os.environ.get("PORT", 8000))
+        app.settings.host = "0.0.0.0"
+        app.settings.port = port
+        transport_name = "streamable-http" if transport == "http" else "sse"
+        app.run(transport=transport_name)
     else:
         app.run(transport='stdio')
         
