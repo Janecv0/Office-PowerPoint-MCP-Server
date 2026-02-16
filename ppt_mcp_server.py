@@ -404,22 +404,33 @@ def get_server_info() -> Dict:
 
 # ---- Main Function ----
 # ---- Main Function ----
+# ---- Main Function ----
 def main(transport: str = "stdio", port: int = 8000):
     if transport == "http":
-        import uvicorn
-        
-        # This creates the Starlette app from the MCP server
-        # We must allow all hosts to fix the "Invalid Host header" error
-        starlette_app = app.create_sse_server()
-        
-        # Run uvicorn directly with the correct settings for Railway
-        uvicorn.run(
-            starlette_app,
-            host="0.0.0.0",
-            port=port,
-            forwarded_allow_ips="*"  # Trust Railway's proxy
-        )
-            
+        # OPTION 1: The standard way
+        # We pass 'forwarded_allow_ips' to tell Uvicorn to trust Railway's proxy
+        # We pass 'host' to listen on all interfaces
+        try:
+            app.run(
+                transport='sse', 
+                port=port, 
+                host='0.0.0.0', 
+                forwarded_allow_ips='*'
+            )
+        except TypeError:
+            # Fallback: If the library version doesn't support forwarded_allow_ips in run(),
+            # we try to get the ASGI app directly. 
+            import uvicorn
+            # Try to get the underlying app (common names: sse_app, _sse_app, starlette_app)
+            if hasattr(app, 'sse_app'):
+                asgi_app = app.sse_app()
+            elif hasattr(app, 'http_app'):
+                asgi_app = app.http_app()
+            else:
+                raise RuntimeError("Could not find ASGI app on FastMCP object. Please check dir(app).")
+
+            uvicorn.run(asgi_app, host="0.0.0.0", port=port, forwarded_allow_ips="*")
+
     elif transport == "sse":
         app.run(transport='sse')
         
