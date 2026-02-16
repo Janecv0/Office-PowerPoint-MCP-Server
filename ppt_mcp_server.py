@@ -408,6 +408,15 @@ def main(transport: str = "stdio"):
         port = int(os.environ.get("PORT", 8000))
         app.settings.host = "0.0.0.0"
         app.settings.port = port
+        # Allow Railway's public/private domains through DNS rebinding protection
+        public_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")
+        private_domain = os.environ.get("RAILWAY_PRIVATE_DOMAIN", "")
+        allowed_hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+        if public_domain:
+            allowed_hosts.append(public_domain)
+        if private_domain:
+            allowed_hosts.append(private_domain)
+        app.settings.transport_security.allowed_hosts = allowed_hosts
         transport_name = "streamable-http" if transport == "http" else "sse"
         app.run(transport=transport_name)
     else:
