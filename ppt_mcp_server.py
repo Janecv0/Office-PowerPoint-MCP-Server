@@ -403,43 +403,32 @@ def get_server_info() -> Dict:
     }
 
 def main(transport: str = "stdio", port: int = 8000):
+    port = int(os.environ.get("PORT", port))  # <-- add this
     if transport == "http":
-        import uvicorn
-        
-        # Extract the internal Starlette application
-        starlette_app = getattr(app, "_sse_app", None) or getattr(app, "_app", None)
-        
-        if starlette_app:
-            print(f"Starting Custom Uvicorn Server on port {port}...")
-            # Run Uvicorn with forwarded_allow_ips to fix Railway host header issues
-            uvicorn.run(
-                starlette_app, 
-                host="0.0.0.0", 
-                port=port, 
-                forwarded_allow_ips="*"
-            )
-        else:
-            print("Could not find internal app, falling back to default run.")
-            app.run(transport='sse')
-    
+        import asyncio
+        # Set the port for HTTP transport
+        app.settings.port = port
+
+
+
+        # Start the FastMCP server with HTTP transport
+        try:
+            app.run(transport='streamable-http')
+
+
+        except asyncio.exceptions.CancelledError:
+            print("Server stopped by user.")
+        except KeyboardInterrupt:
+            print("Server stopped by user.")
+        except Exception as e:
+            print(f"Error starting server: {e}")
+
     elif transport == "sse":
-        # For SSE transport, use Uvicorn directly as well
-        import uvicorn
-        starlette_app = getattr(app, "_sse_app", None) or getattr(app, "_app", None)
-        
-        if starlette_app:
-            print(f"Starting SSE Server on port {port}...")
-            uvicorn.run(
-                starlette_app,
-                host="0.0.0.0",
-                port=port,
-                forwarded_allow_ips="*"
-            )
-        else:
-            app.run(transport='sse')
-    
+        # Run the FastMCP server in SSE (Server Side Events) mode
+        app.run(transport='sse')
+
     else:
-        # For stdio, use the default run method
+        # Run the FastMCP server
         app.run(transport='stdio')
         
 if __name__ == "__main__":
