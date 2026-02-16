@@ -403,33 +403,27 @@ def get_server_info() -> Dict:
     }
 
 # ---- Main Function ----
+# ---- Main Function ----
 def main(transport: str = "stdio", port: int = 8000):
     if transport == "http":
-        import asyncio
-        # Set the port for HTTP transport
-        app.settings.port = port
-        # CRITICAL FIX 1: Listen on all interfaces
-        app.settings.host = "0.0.0.0"  
-        # CRITICAL FIX 2: Trust the Railway URL (Wildcard)
-        app.settings.allowed_hosts = ["*"] 
+        import uvicorn
         
-        # Start the FastMCP server with HTTP transport
-        try:
-            # We use 'sse' transport here as it's the standard for remote connections
-            app.run(transport='sse') 
-        except asyncio.exceptions.CancelledError:
-            print("Server stopped by user.")
-        except KeyboardInterrupt:
-            print("Server stopped by user.")
-        except Exception as e:
-            print(f"Error starting server: {e}")
+        # This creates the Starlette app from the MCP server
+        # We must allow all hosts to fix the "Invalid Host header" error
+        starlette_app = app.create_sse_server()
+        
+        # Run uvicorn directly with the correct settings for Railway
+        uvicorn.run(
+            starlette_app,
+            host="0.0.0.0",
+            port=port,
+            forwarded_allow_ips="*"  # Trust Railway's proxy
+        )
             
     elif transport == "sse":
-        # Run the FastMCP server in SSE (Server Side Events) mode
         app.run(transport='sse')
         
     else:
-        # Run the FastMCP server
         app.run(transport='stdio')
 
 if __name__ == "__main__":
