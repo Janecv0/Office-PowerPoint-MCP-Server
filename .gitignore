@@ -10,5 +10,6 @@ wheels/
 .venv
 *.bak
 test/
+output/
 .DS_Store
 CLAUDE.md

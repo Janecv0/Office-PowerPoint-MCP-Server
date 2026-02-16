@@ -5,9 +5,12 @@ Consolidated version with 20 tools organized into multiple modules.
 """
 import os
 import argparse
+from pathlib import Path
 from typing import Dict, Any
 
 from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import FileResponse, JSONResponse
 
 # import utils  # Currently unused
 from tools import (
@@ -23,6 +26,10 @@ from tools import (
     register_transition_tools
 )
 
+# Output directory for saved presentations
+OUTPUT_DIR = Path(os.environ.get("PPT_OUTPUT_DIR", "./output")).resolve()
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
 # Initialize the FastMCP server
 app = FastMCP(
     name="ppt-mcp-server"
@@ -32,6 +39,27 @@ app = FastMCP(
 # Global state to store presentations in memory
 presentations = {}
 current_presentation_id = None
+
+# Transport mode (set in main() before app.run())
+_transport_mode = "stdio"
+
+
+def get_transport_mode() -> str:
+    """Get the current transport mode."""
+    return _transport_mode
+
+
+def get_base_url() -> str:
+    """Build the base URL from host/port settings."""
+    host = getattr(app.settings, "host", "localhost")
+    port = getattr(app.settings, "port", 8000)
+    display_host = "localhost" if host == "0.0.0.0" else host
+    return f"http://{display_host}:{port}"
+
+
+def get_download_url(filename: str) -> str:
+    """Return a full download URL for a saved file."""
+    return f"{get_base_url()}/files/{filename}"
 
 # Template configuration
 def get_template_search_directories():
@@ -189,6 +217,34 @@ def add_shape_direct(slide, shape_type: str, left: float, top: float, width: flo
     except Exception as e:
         raise ValueError(f"Failed to create '{shape_type}' shape using direct value {shape_value}: {str(e)}")
 
+# ---- File download endpoint ----
+
+@app.custom_route("/files/{filename}", methods=["GET"])
+async def download_file(request: Request) -> FileResponse:
+    """Serve saved presentation files for download."""
+    filename = request.path_params["filename"]
+
+    # Path traversal protection
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
+
+    file_path = OUTPUT_DIR / filename
+    resolved = file_path.resolve()
+
+    # Ensure the resolved path is still within OUTPUT_DIR
+    if not str(resolved).startswith(str(OUTPUT_DIR)):
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
+
+    if not resolved.is_file():
+        return JSONResponse({"error": "File not found"}, status_code=404)
+
+    return FileResponse(
+        path=str(resolved),
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
+
+
 # ---- Custom presentation management wrapper ----
 
 class PresentationManager:
@@ -229,10 +285,13 @@ def open_presentation_wrapper(original_func):
 
 # Register all tool modules
 register_presentation_tools(
-    app, 
-    presentations, 
-    get_current_presentation_id, 
-    get_template_search_directories
+    app,
+    presentations,
+    get_current_presentation_id,
+    get_template_search_directories,
+    output_dir=OUTPUT_DIR,
+    get_download_url_fn=get_download_url,
+    transport_mode_fn=get_transport_mode,
 )
 
 register_content_tools(
@@ -405,6 +464,9 @@ def get_server_info() -> Dict:
     }
 
 def main(transport: str = "stdio"):
+    global _transport_mode
+    _transport_mode = transport
+
     if transport in ("http", "sse"):
         port = int(os.environ.get("PORT", 8000))
         app.settings.host = "0.0.0.0"

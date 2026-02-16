@@ -13,6 +13,9 @@ COPY . .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Create output directory for saved presentations
+RUN mkdir -p /app/output
+
 # Expose default port for Railway port detection
 EXPOSE 8000
 

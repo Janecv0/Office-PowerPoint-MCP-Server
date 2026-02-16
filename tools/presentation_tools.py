@@ -9,7 +9,15 @@ from mcp.types import ToolAnnotations
 import utils as ppt_utils
 
 
-def register_presentation_tools(app: FastMCP, presentations: Dict, get_current_presentation_id, get_template_search_directories):
+def register_presentation_tools(
+    app: FastMCP,
+    presentations: Dict,
+    get_current_presentation_id,
+    get_template_search_directories,
+    output_dir=None,
+    get_download_url_fn=None,
+    transport_mode_fn=None,
+):
     """Register presentation management tools with the FastMCP app"""
     
     @app.tool(
@@ -128,19 +136,42 @@ def register_presentation_tools(app: FastMCP, presentations: Dict, get_current_p
         """Save a presentation to a file."""
         # Use the specified presentation or the current one
         pres_id = presentation_id if presentation_id is not None else get_current_presentation_id()
-        
+
         if pres_id is None or pres_id not in presentations:
             return {
                 "error": "No presentation is currently loaded or the specified ID is invalid"
             }
-        
+
         # Save the presentation
         try:
-            saved_path = ppt_utils.save_presentation(presentations[pres_id], file_path)
-            return {
+            # When an output_dir is configured, save into it using just the basename
+            if output_dir is not None:
+                filename = os.path.basename(file_path)
+                if not filename:
+                    filename = "presentation.pptx"
+                if not filename.lower().endswith(".pptx"):
+                    filename += ".pptx"
+                save_path = os.path.join(str(output_dir), filename)
+            else:
+                save_path = file_path
+                filename = os.path.basename(file_path)
+
+            saved_path = ppt_utils.save_presentation(presentations[pres_id], save_path)
+
+            result = {
                 "message": f"Presentation saved to {saved_path}",
-                "file_path": saved_path
+                "file_path": saved_path,
             }
+
+            # Include download URL when running in HTTP/SSE mode
+            if (
+                get_download_url_fn is not None
+                and transport_mode_fn is not None
+                and transport_mode_fn() in ("http", "sse")
+            ):
+                result["download_url"] = get_download_url_fn(filename)
+
+            return result
         except Exception as e:
             return {
                 "error": f"Failed to save presentation: {str(e)}"
