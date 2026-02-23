@@ -10,6 +10,8 @@ WORKDIR /app
 # Copy the application code
 COPY . .
 
+#test
+
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
